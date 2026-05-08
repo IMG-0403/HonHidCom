@@ -176,6 +176,10 @@ function focusInput(input, options = {}) {
   applyKeyboardMode(input, showKeyboard);
   input.disabled = false;
 
+  if (document.activeElement && document.activeElement !== input && document.activeElement.blur) {
+    document.activeElement.blur();
+  }
+
   if (forceRefocus) {
     input.blur();
   }
@@ -225,12 +229,34 @@ function primeScannerInput() {
   focusNext({ showKeyboard: true, forceRefocus: true });
   hideVirtualKeyboard();
 
-  window.setTimeout(() => {
+  const settleScannerFocus = () => {
     state.isSoftwareKeyboardVisible = false;
     render();
     focusNext({ showKeyboard: false, forceRefocus: true });
     hideVirtualKeyboard();
-  }, 80);
+  };
+
+  window.setTimeout(settleScannerFocus, 80);
+  window.setTimeout(settleScannerFocus, 220);
+}
+
+function hideSoftwareKeyboardAndPrimeScanner() {
+  state.isSoftwareKeyboardVisible = false;
+  render();
+
+  const input = targetInput();
+  applyKeyboardMode(input, false);
+  input.blur();
+  if (document.activeElement && document.activeElement.blur) {
+    document.activeElement.blur();
+  }
+  hideVirtualKeyboard();
+
+  window.setTimeout(() => {
+    render();
+    focusNext({ showKeyboard: false, forceRefocus: true });
+    hideVirtualKeyboard();
+  }, 160);
 }
 
 function inputEnabled() {
@@ -271,6 +297,12 @@ function receiveTextInput(text) {
 
 function toggleSoftwareKeyboard() {
   if (!inputEnabled()) return;
+
+  if (state.isSoftwareKeyboardVisible) {
+    hideSoftwareKeyboardAndPrimeScanner();
+    return;
+  }
+
   state.isSoftwareKeyboardVisible = !state.isSoftwareKeyboardVisible;
   render();
   focusInput(targetInput(), {
@@ -379,7 +411,7 @@ function clearVerification() {
   state.resultMessage = STATUS_WAITING;
   state.activeInputTarget = "master";
   render();
-  focusNext({ showKeyboard: false, forceRefocus: true });
+  primeScannerInput();
 }
 
 function retryInput() {
