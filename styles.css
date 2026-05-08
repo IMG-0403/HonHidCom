@@ -210,6 +210,10 @@ h1 {
   flex-wrap: wrap;
 }
 
+.keyboard-button {
+  width: 100%;
+}
+
 .primary-button,
 .secondary-button {
   min-height: 52px;
