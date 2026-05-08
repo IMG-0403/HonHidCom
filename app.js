@@ -389,7 +389,7 @@ function retryInput() {
   state.resultMessage = STATUS_REGISTERED;
   state.activeInputTarget = "slave";
   render();
-  focusNext({ showKeyboard: false, forceRefocus: true });
+  primeScannerInput();
 }
 
 function confirmAction(message, onConfirm) {
