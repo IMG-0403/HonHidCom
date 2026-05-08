@@ -166,8 +166,9 @@ function appendVerificationLog(masterData, slaveData, resultSymbol) {
 }
 
 function applyKeyboardMode(input, isVisible) {
-  input.inputMode = isVisible ? "text" : "none";
-  input.setAttribute("inputmode", isVisible ? "text" : "none");
+  input.inputMode = "text";
+  input.setAttribute("inputmode", "text");
+  input.setAttribute("virtualkeyboardpolicy", isVisible ? "auto" : "manual");
 }
 
 function focusInput(input, options = {}) {
