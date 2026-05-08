@@ -240,6 +240,21 @@ function primeScannerInput() {
   window.setTimeout(settleScannerFocus, 220);
 }
 
+function restoreScannerInputSilently() {
+  if (!inputEnabled()) return;
+
+  state.isSoftwareKeyboardVisible = false;
+  render();
+  focusNext({ showKeyboard: false, forceRefocus: true });
+  hideVirtualKeyboard();
+
+  window.setTimeout(() => {
+    render();
+    focusNext({ showKeyboard: false, forceRefocus: true });
+    hideVirtualKeyboard();
+  }, 120);
+}
+
 function hideSoftwareKeyboardAndPrimeScanner() {
   state.isSoftwareKeyboardVisible = false;
   render();
@@ -411,7 +426,7 @@ function clearVerification() {
   state.resultMessage = STATUS_WAITING;
   state.activeInputTarget = "master";
   render();
-  primeScannerInput();
+  restoreScannerInputSilently();
 }
 
 function retryInput() {
@@ -424,7 +439,7 @@ function retryInput() {
     state.activeInputTarget = state.masterData ? "slave" : "master";
   }
   render();
-  primeScannerInput();
+  restoreScannerInputSilently();
 }
 
 function confirmAction(message, onConfirm) {
