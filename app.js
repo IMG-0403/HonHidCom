@@ -39,6 +39,7 @@ const elements = {
   backButton: document.querySelector("#back-button"),
   masterInput: document.querySelector("#master-input"),
   slaveInput: document.querySelector("#slave-input"),
+  scannerCaptureInput: document.querySelector("#scanner-capture-input"),
   clearButton: document.querySelector("#clear-button"),
   retryButton: document.querySelector("#retry-button"),
   keyboardToggleButton: document.querySelector("#keyboard-toggle-button"),
@@ -192,6 +193,30 @@ function focusInput(input, options = {}) {
   input.setSelectionRange(input.value.length, input.value.length);
 }
 
+function focusScannerCapture(options = {}) {
+  if (!inputEnabled()) return;
+
+  const { forceRefocus = false } = options;
+  const input = elements.scannerCaptureInput;
+  applyKeyboardMode(input, false);
+  input.disabled = false;
+  input.value = "";
+
+  if (document.activeElement && document.activeElement !== input && document.activeElement.blur) {
+    document.activeElement.blur();
+  }
+
+  if (forceRefocus) {
+    input.blur();
+  }
+
+  try {
+    input.focus({ preventScroll: true });
+  } catch {
+    input.focus();
+  }
+}
+
 function focusNext(options = {}) {
   if (!state.selectedMode || state.resultSymbol === RESULT_MISMATCH) return;
 
@@ -232,7 +257,7 @@ function primeScannerInput() {
   const settleScannerFocus = () => {
     state.isSoftwareKeyboardVisible = false;
     render();
-    focusNext({ showKeyboard: false, forceRefocus: true });
+    focusScannerCapture({ forceRefocus: true });
     hideVirtualKeyboard();
   };
 
@@ -245,12 +270,12 @@ function restoreScannerInputSilently() {
 
   state.isSoftwareKeyboardVisible = false;
   render();
-  focusNext({ showKeyboard: false, forceRefocus: false });
+  focusScannerCapture({ forceRefocus: true });
   hideVirtualKeyboard();
 
   window.setTimeout(() => {
     render();
-    focusNext({ showKeyboard: false, forceRefocus: false });
+    focusScannerCapture({ forceRefocus: true });
     hideVirtualKeyboard();
   }, 120);
 }
@@ -269,7 +294,7 @@ function hideSoftwareKeyboardAndPrimeScanner() {
 
   window.setTimeout(() => {
     render();
-    focusNext({ showKeyboard: false, forceRefocus: true });
+    focusScannerCapture({ forceRefocus: true });
     hideVirtualKeyboard();
   }, 160);
 }
@@ -571,6 +596,21 @@ elements.slaveInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
     submitSlaveData(state.slaveData);
+  }
+});
+
+elements.scannerCaptureInput.addEventListener("input", (event) => {
+  const rawValue = event.target.value;
+  if (!rawValue) return;
+
+  event.target.value = "";
+  receiveTextInput(rawValue);
+});
+
+elements.scannerCaptureInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    submitActiveInput();
   }
 });
 
