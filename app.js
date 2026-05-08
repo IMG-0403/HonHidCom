@@ -172,6 +172,15 @@ function applyKeyboardMode(input, isVisible) {
   input.setAttribute("virtualkeyboardpolicy", isVisible ? "auto" : "manual");
 }
 
+function suppressKeyboardForVisibleInputs() {
+  [elements.masterInput, elements.slaveInput].forEach((input) => {
+    input.readOnly = true;
+    input.inputMode = "none";
+    input.setAttribute("inputmode", "none");
+    input.setAttribute("virtualkeyboardpolicy", "manual");
+  });
+}
+
 function focusInput(input, options = {}) {
   const { showKeyboard = state.isSoftwareKeyboardVisible, forceRefocus = false } = options;
   applyKeyboardMode(input, showKeyboard);
@@ -282,10 +291,10 @@ function restoreScannerInputSilently() {
 
 function hideSoftwareKeyboardAndPrimeScanner() {
   state.isSoftwareKeyboardVisible = false;
-  render();
 
   const input = targetInput();
-  applyKeyboardMode(input, false);
+  suppressKeyboardForVisibleInputs();
+  input.disabled = true;
   input.blur();
   if (document.activeElement && document.activeElement.blur) {
     document.activeElement.blur();
@@ -293,6 +302,7 @@ function hideSoftwareKeyboardAndPrimeScanner() {
   hideVirtualKeyboard();
 
   window.setTimeout(() => {
+    input.disabled = false;
     render();
     focusScannerCapture({ forceRefocus: true });
     hideVirtualKeyboard();
@@ -372,10 +382,14 @@ function render() {
   elements.openSettings.disabled = !settingsEnabled;
   elements.masterInput.disabled = !isInputEnabled;
   elements.slaveInput.disabled = !isInputEnabled;
-  elements.masterInput.readOnly = false;
-  elements.slaveInput.readOnly = false;
-  applyKeyboardMode(elements.masterInput, state.isSoftwareKeyboardVisible);
-  applyKeyboardMode(elements.slaveInput, state.isSoftwareKeyboardVisible);
+  elements.masterInput.readOnly = !state.isSoftwareKeyboardVisible;
+  elements.slaveInput.readOnly = !state.isSoftwareKeyboardVisible;
+  if (state.isSoftwareKeyboardVisible) {
+    applyKeyboardMode(elements.masterInput, true);
+    applyKeyboardMode(elements.slaveInput, true);
+  } else {
+    suppressKeyboardForVisibleInputs();
+  }
   elements.masterInput.value = state.masterInput;
   elements.slaveInput.value = state.slaveData;
   elements.keyboardToggleButton.disabled = !isInputEnabled;
