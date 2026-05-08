@@ -415,11 +415,14 @@ function clearVerification() {
 }
 
 function retryInput() {
-  if (state.resultSymbol !== RESULT_MISMATCH) return;
-  state.slaveData = "";
-  state.resultSymbol = RESULT_PENDING;
-  state.resultMessage = STATUS_REGISTERED;
-  state.activeInputTarget = "slave";
+  if (state.resultSymbol === RESULT_MISMATCH) {
+    state.slaveData = "";
+    state.resultSymbol = RESULT_PENDING;
+    state.resultMessage = STATUS_REGISTERED;
+    state.activeInputTarget = "slave";
+  } else {
+    state.activeInputTarget = state.masterData ? "slave" : "master";
+  }
   render();
   primeScannerInput();
 }
