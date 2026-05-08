@@ -208,6 +208,27 @@ function focusNext(options = {}) {
   }
 }
 
+function hideVirtualKeyboard() {
+  if (navigator.virtualKeyboard?.hide) {
+    navigator.virtualKeyboard.hide();
+  }
+}
+
+function primeScannerInput() {
+  if (!inputEnabled()) return;
+
+  state.isSoftwareKeyboardVisible = false;
+  focusNext({ showKeyboard: true, forceRefocus: true });
+  hideVirtualKeyboard();
+
+  window.setTimeout(() => {
+    state.isSoftwareKeyboardVisible = false;
+    render();
+    focusNext({ showKeyboard: false, forceRefocus: true });
+    hideVirtualKeyboard();
+  }, 80);
+}
+
 function inputEnabled() {
   return state.selectedMode !== null && state.resultSymbol !== RESULT_MISMATCH;
 }
@@ -294,7 +315,7 @@ function selectMode(mode) {
   state.resultMessage = state.masterData ? STATUS_REGISTERED : STATUS_WAITING;
   state.isSoftwareKeyboardVisible = false;
   render();
-  focusNext({ showKeyboard: false, forceRefocus: true });
+  primeScannerInput();
 }
 
 function registerMasterData(value = state.masterInput) {
