@@ -139,7 +139,9 @@ function setScreen(screen) {
 
   if (screen === "verification") {
     render();
-    focusNext({ defer: true });
+    if (inputEnabled()) {
+      restoreScannerInputSilently();
+    }
   }
 }
 
