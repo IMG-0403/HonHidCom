@@ -143,6 +143,7 @@ function setScreen(screen) {
   elements.settingsScreen.classList.toggle("is-active", screen === "settings");
 
   if (screen === "verification") {
+    openHoneywellBarcodeReader();
     render();
     if (inputEnabled()) {
       restoreScannerInputSilently();
@@ -182,7 +183,19 @@ function appendVerificationLog(masterData, slaveData, resultSymbol) {
 }
 
 function handleHoneywellBarcodeData(data) {
-  const scanData = sanitizeScanInput(String(data || ""));
+  let rawData = data;
+
+  if (data && typeof data === "object") {
+    if (typeof data.data !== "undefined") {
+      rawData = data.data;
+    } else if (data.barcode && typeof data.barcode.data !== "undefined") {
+      rawData = data.barcode.data;
+    } else if (data.detail && typeof data.detail.data !== "undefined") {
+      rawData = data.detail.data;
+    }
+  }
+
+  const scanData = sanitizeScanInput(String(rawData || ""));
   if (!scanData || !inputEnabled()) return;
 
   if (state.activeInputTarget === "slave" || state.masterData) {
@@ -195,6 +208,12 @@ function handleHoneywellBarcodeData(data) {
   state.masterInput = scanData;
   render();
   registerMasterData(scanData);
+}
+
+function handleBarcodeTextData(text) {
+  const scanData = sanitizeScanInput(String(text || ""));
+  if (!scanData || !inputEnabled()) return;
+  handleHoneywellBarcodeData(scanData);
 }
 
 function onHoneywellBarcodeReaderComplete(result) {
@@ -721,7 +740,7 @@ elements.scannerCaptureInput.addEventListener("input", (event) => {
   if (!rawValue) return;
 
   event.target.value = "";
-  receiveTextInput(rawValue);
+  handleBarcodeTextData(rawValue);
 });
 
 elements.scannerCaptureInput.addEventListener("keydown", (event) => {
@@ -766,7 +785,7 @@ document.addEventListener("paste", (event) => {
   if (!text) return;
 
   event.preventDefault();
-  receiveTextInput(text);
+  handleBarcodeTextData(text);
 });
 
 document.addEventListener("beforeinput", (event) => {
@@ -780,6 +799,10 @@ document.addEventListener("beforeinput", (event) => {
 
   event.preventDefault();
   receiveTextInput(event.data);
+});
+
+document.addEventListener("barcodedataready", (event) => {
+  handleHoneywellBarcodeData(event);
 });
 
 elements.masterStart.addEventListener("input", (event) => {
