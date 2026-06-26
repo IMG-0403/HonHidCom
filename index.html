@@ -211,7 +211,9 @@ async function api(path, body) {
     return await response.json();
   } catch (error) {
     $("device").value = "";
-    $("details").textContent = "ローカルアプリとの通信に失敗しました。\n" + error.message;
+    $("details").textContent = "ローカルアプリとの通信に失敗しました。\n" +
+      "HoneywellHidTool.exeを起動し、表示される小さい管理ウィンドウを閉じずに操作してください。\n" +
+      error.message;
     $("serial").textContent = "未接続";
     setStatus("通信エラー", "ng");
     throw error;
