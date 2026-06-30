@@ -358,39 +358,12 @@
         }
 
         function buildGitHubSession() {
-            let owner = localStorage.getItem("picscanOwner") || "";
-            let repo = localStorage.getItem("picscanRepo") || "";
-            let branch = localStorage.getItem("picscanBranch") || "main";
-            let token = sessionStorage.getItem("picscanToken") || "";
-
-            if (!owner) {
-                owner = prompt("GitHub Owner / Organizationを入力してください。", "") || "";
-            }
-            if (!repo) {
-                repo = prompt("GitHub Repositoryを入力してください。", "") || "";
-            }
-            if (!branch) {
-                branch = "main";
-            }
-            if (!token) {
-                token = prompt("GitHub Tokenを入力してください。", "") || "";
-            }
-
-            owner = owner.trim();
-            repo = repo.trim();
-            branch = branch.trim() || "main";
-            token = token.trim();
-
-            if (owner && repo) {
-                localStorage.setItem("picscanOwner", owner);
-                localStorage.setItem("picscanRepo", repo);
-                localStorage.setItem("picscanBranch", branch);
-            }
-            if (token) {
-                sessionStorage.setItem("picscanToken", token);
-            }
-
-            return { owner, repo, branch, token };
+            return {
+                owner: (localStorage.getItem("picscanOwner") || "").trim(),
+                repo: (localStorage.getItem("picscanRepo") || "").trim(),
+                branch: (localStorage.getItem("picscanBranch") || "main").trim() || "main",
+                token: (sessionStorage.getItem("picscanToken") || "").trim()
+            };
         }
 
         function ensureGitHubSession() {
