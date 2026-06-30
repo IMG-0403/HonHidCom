@@ -130,6 +130,13 @@
             border-bottom: 1px solid #dce3ea;
         }
 
+        .resultTitleRow {
+            display: flex;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 10px 14px;
+        }
+
         .imageFrame {
             display: grid;
             place-items: center;
@@ -154,10 +161,8 @@
 
         .imageComment {
             margin: 0;
-            padding: 16px 18px 18px;
-            border-top: 1px solid #dce3ea;
-            color: #17212b;
-            line-height: 1.7;
+            color: #334455;
+            line-height: 1.55;
             white-space: pre-wrap;
             overflow-wrap: anywhere;
         }
@@ -233,13 +238,15 @@
             <div class="resultHeader">
                 <div>
                     <p class="label">検索結果</p>
-                    <h2 id="resultTitle"></h2>
+                    <div class="resultTitleRow">
+                        <h2 id="resultTitle"></h2>
+                        <p class="imageComment" id="resultComment"></p>
+                    </div>
                 </div>
             </div>
             <div class="imageFrame">
                 <img id="resultImage" src="" alt="">
             </div>
-            <p class="imageComment" id="resultComment"></p>
         </section>
 
         <section class="emptyState" id="message">
