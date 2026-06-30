@@ -375,7 +375,7 @@
 
         function updateResultActions() {
             const hasImage = Boolean(currentImage);
-            renameButton.disabled = !hasImage;
+            renameButton.disabled = !hasImage || !currentImage.bytes;
             deleteButton.disabled = !hasImage;
         }
 
@@ -395,9 +395,16 @@
             currentImage = image;
             if (currentObjectUrl) {
                 URL.revokeObjectURL(currentObjectUrl);
+                currentObjectUrl = "";
             }
-            currentObjectUrl = URL.createObjectURL(new Blob([image.bytes], { type: image.mimeType }));
-            resultImage.src = currentObjectUrl;
+            if (image.bytes && image.bytes.length) {
+                currentObjectUrl = URL.createObjectURL(new Blob([image.bytes], { type: image.mimeType }));
+                resultImage.src = currentObjectUrl;
+            } else if (image.downloadUrl) {
+                resultImage.src = `${image.downloadUrl}${image.downloadUrl.includes("?") ? "&" : "?"}v=${Date.now()}`;
+            } else {
+                resultImage.removeAttribute("src");
+            }
             resultImage.alt = image.name;
             resultMeta.textContent = `images/${image.name}`;
             previewPanel.classList.remove("hidden");
@@ -502,7 +509,7 @@
                 selectButton.className = "secondary";
                 selectButton.type = "button";
                 selectButton.textContent = "選択";
-                selectButton.addEventListener("click", () => selectListedImage(file.name));
+                selectButton.addEventListener("click", () => selectListedImage(file));
 
                 const removeButton = document.createElement("button");
                 removeButton.className = "danger";
@@ -524,18 +531,28 @@
             setStatus(`登録画像一覧を表示しました: ${files.length}件`);
         }
 
-        async function selectListedImage(fileName) {
+        async function selectListedImage(file) {
             try {
                 ensureGitHubSession();
                 setBusy(true);
-                setStatus(`読み込み中: images/${fileName}`);
-                const image = await getImage(fileName);
+                setStatus(`読み込み中: images/${file.name}`);
+                let image = null;
+                try {
+                    image = await getImage(file.name);
+                } catch (error) {
+                    if (!file.download_url) {
+                        throw error;
+                    }
+                }
+                if (!image) {
+                    image = await getImageFromDownloadUrl(file);
+                }
                 if (!image) {
                     setStatus("画像が見つかりませんでした。");
                     await refreshImageList();
                     return;
                 }
-                modelInput.value = fileName.replace(/\.[^.]+$/, "");
+                modelInput.value = file.name.replace(/\.[^.]+$/, "");
                 showPreview(image);
                 setStatus(`選択しました: images/${image.name}`);
             } catch (error) {
@@ -589,6 +606,33 @@
                 bytes,
                 mimeType: contentTypeForName(body.name),
                 downloadUrl: body.download_url
+            };
+        }
+
+        async function getImageFromDownloadUrl(file) {
+            if (!file.download_url) {
+                return null;
+            }
+            const response = await fetch(file.download_url, {
+                headers: {
+                    "Authorization": `Bearer ${session.token}`
+                }
+            });
+            if (!response.ok) {
+                return {
+                    name: file.name,
+                    sha: file.sha,
+                    bytes: null,
+                    mimeType: contentTypeForName(file.name),
+                    downloadUrl: file.download_url
+                };
+            }
+            return {
+                name: file.name,
+                sha: file.sha,
+                bytes: new Uint8Array(await response.arrayBuffer()),
+                mimeType: response.headers.get("Content-Type") || contentTypeForName(file.name),
+                downloadUrl: file.download_url
             };
         }
 
