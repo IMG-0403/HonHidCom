@@ -136,9 +136,46 @@
             font-weight: 700;
         }
 
+        button.secondary {
+            background: #3f596d;
+        }
+
+        button.danger {
+            background: #b3261e;
+        }
+
         button:disabled {
             cursor: not-allowed;
             opacity: 0.55;
+        }
+
+        .previewPanel {
+            display: grid;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .imagePreview {
+            display: grid;
+            place-items: center;
+            min-height: 280px;
+            border: 1px solid #dce3ea;
+            border-radius: 8px;
+            background: #eef2f6;
+            overflow: hidden;
+        }
+
+        .imagePreview img {
+            display: block;
+            width: 100%;
+            max-height: 460px;
+            object-fit: contain;
+        }
+
+        .resultMeta {
+            margin: 0;
+            color: #334455;
+            overflow-wrap: anywhere;
         }
 
         .statusBox {
@@ -201,27 +238,7 @@
         </section>
 
         <section class="panel hidden" id="adminPanel">
-            <p class="label">GitHub設定</p>
-            <div class="grid">
-                <div class="field">
-                    <label for="owner">Owner / Organization</label>
-                    <input id="owner" autocomplete="organization" placeholder="例: your-name">
-                </div>
-                <div class="field">
-                    <label for="repo">Repository</label>
-                    <input id="repo" autocomplete="off" placeholder="例: picscan">
-                </div>
-                <div class="field">
-                    <label for="branch">Branch</label>
-                    <input id="branch" autocomplete="off" value="main">
-                </div>
-                <div class="field">
-                    <label for="token">GitHub Token</label>
-                    <input id="token" type="password" autocomplete="off" placeholder="Contents Read and write">
-                </div>
-            </div>
-
-            <p class="label">画像登録</p>
+            <p class="label">画像管理</p>
             <div class="grid">
                 <div class="field">
                     <label for="model">型番</label>
@@ -234,6 +251,15 @@
             </div>
             <div class="actions">
                 <button id="uploadButton" type="button">画像を保存</button>
+                <button id="searchButton" class="secondary" type="button">検索</button>
+                <button id="renameButton" class="secondary" type="button" disabled>名前変更</button>
+                <button id="deleteButton" class="danger" type="button" disabled>画像データ削除</button>
+            </div>
+            <div class="previewPanel hidden" id="previewPanel">
+                <p class="resultMeta" id="resultMeta"></p>
+                <div class="imagePreview">
+                    <img id="resultImage" alt="">
+                </div>
             </div>
         </section>
 
@@ -243,65 +269,135 @@
     <script>
         const accountInput = document.getElementById("account");
         const passwordInput = document.getElementById("password");
-        const ownerInput = document.getElementById("owner");
-        const repoInput = document.getElementById("repo");
-        const branchInput = document.getElementById("branch");
-        const tokenInput = document.getElementById("token");
         const modelInput = document.getElementById("model");
         const photoInput = document.getElementById("photo");
         const loginPanel = document.getElementById("loginPanel");
         const adminPanel = document.getElementById("adminPanel");
+        const previewPanel = document.getElementById("previewPanel");
+        const resultMeta = document.getElementById("resultMeta");
+        const resultImage = document.getElementById("resultImage");
         const statusBox = document.getElementById("status");
         const loginButton = document.getElementById("loginButton");
         const uploadButton = document.getElementById("uploadButton");
+        const searchButton = document.getElementById("searchButton");
+        const renameButton = document.getElementById("renameButton");
+        const deleteButton = document.getElementById("deleteButton");
 
         const adminAccount = "img";
         const adminPassword = "5381";
+        const knownExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
         let session = null;
-
-        ownerInput.value = localStorage.getItem("picscanOwner") || "";
-        repoInput.value = localStorage.getItem("picscanRepo") || "";
-        branchInput.value = localStorage.getItem("picscanBranch") || "main";
+        let currentImage = null;
+        let currentObjectUrl = "";
 
         function setStatus(message) {
             statusBox.textContent = message;
         }
 
         function setBusy(isBusy) {
-            [loginButton, uploadButton].forEach((button) => {
+            [loginButton, uploadButton, searchButton, renameButton, deleteButton].forEach((button) => {
                 button.disabled = isBusy;
             });
+            if (!isBusy) {
+                updateResultActions();
+            }
+        }
+
+        function updateResultActions() {
+            const hasImage = Boolean(currentImage);
+            renameButton.disabled = !hasImage;
+            deleteButton.disabled = !hasImage;
+        }
+
+        function clearPreview() {
+            currentImage = null;
+            if (currentObjectUrl) {
+                URL.revokeObjectURL(currentObjectUrl);
+                currentObjectUrl = "";
+            }
+            resultImage.removeAttribute("src");
+            resultMeta.textContent = "";
+            previewPanel.classList.add("hidden");
+            updateResultActions();
+        }
+
+        function showPreview(image) {
+            currentImage = image;
+            if (currentObjectUrl) {
+                URL.revokeObjectURL(currentObjectUrl);
+            }
+            currentObjectUrl = URL.createObjectURL(new Blob([image.bytes], { type: image.mimeType }));
+            resultImage.src = currentObjectUrl;
+            resultImage.alt = image.name;
+            resultMeta.textContent = `images/${image.name}`;
+            previewPanel.classList.remove("hidden");
+            updateResultActions();
+        }
+
+        function normalizeBaseName(value) {
+            return value.trim().replaceAll("\\", "/").split("/").pop();
         }
 
         function normalizeFileName(value, fallbackExtension = ".jpg") {
-            const clean = value.trim().replaceAll("\\", "/").split("/").pop();
+            const clean = normalizeBaseName(value);
             if (!clean) {
                 return "";
             }
             return /\.[a-z0-9]+$/i.test(clean) ? clean : `${clean}${fallbackExtension}`;
         }
 
-        function buildGitHubSession() {
-            return {
-                owner: ownerInput.value.trim(),
-                repo: repoInput.value.trim(),
-                branch: branchInput.value.trim() || "main",
-                token: tokenInput.value.trim()
-            };
+        function modelCandidates(value) {
+            const clean = normalizeBaseName(value);
+            if (!clean) {
+                return [];
+            }
+            if (/\.[a-z0-9]+$/i.test(clean)) {
+                return [clean];
+            }
+            return knownExtensions.map((extension) => `${clean}${extension}`);
         }
 
-        function saveGitHubSettings() {
-            localStorage.setItem("picscanOwner", ownerInput.value.trim());
-            localStorage.setItem("picscanRepo", repoInput.value.trim());
-            localStorage.setItem("picscanBranch", branchInput.value.trim() || "main");
+        function buildGitHubSession() {
+            let owner = localStorage.getItem("picscanOwner") || "";
+            let repo = localStorage.getItem("picscanRepo") || "";
+            let branch = localStorage.getItem("picscanBranch") || "main";
+            let token = sessionStorage.getItem("picscanToken") || "";
+
+            if (!owner) {
+                owner = prompt("GitHub Owner / Organizationを入力してください。", "") || "";
+            }
+            if (!repo) {
+                repo = prompt("GitHub Repositoryを入力してください。", "") || "";
+            }
+            if (!branch) {
+                branch = "main";
+            }
+            if (!token) {
+                token = prompt("GitHub Tokenを入力してください。", "") || "";
+            }
+
+            owner = owner.trim();
+            repo = repo.trim();
+            branch = branch.trim() || "main";
+            token = token.trim();
+
+            if (owner && repo) {
+                localStorage.setItem("picscanOwner", owner);
+                localStorage.setItem("picscanRepo", repo);
+                localStorage.setItem("picscanBranch", branch);
+            }
+            if (token) {
+                sessionStorage.setItem("picscanToken", token);
+            }
+
+            return { owner, repo, branch, token };
         }
 
         function ensureGitHubSession() {
             session = buildGitHubSession();
             if (!session.owner || !session.repo || !session.token) {
-                throw new Error("GitHub設定の Owner、Repository、GitHub Tokenを入力してください。");
+                throw new Error("GitHub接続情報が不足しています。");
             }
-            saveGitHubSettings();
         }
 
         function githubHeaders() {
@@ -312,9 +408,10 @@
             };
         }
 
-        function contentUrl(fileName, includeRef = true) {
+        function contentUrl(fileName = "", includeRef = true) {
             const encodedName = encodeURIComponent(fileName).replaceAll("%2F", "/");
-            const base = `https://api.github.com/repos/${session.owner}/${session.repo}/contents/images/${encodedName}`;
+            const path = encodedName ? `/contents/images/${encodedName}` : "/contents/images";
+            const base = `https://api.github.com/repos/${session.owner}/${session.repo}${path}`;
             return includeRef ? `${base}?ref=${encodeURIComponent(session.branch)}` : base;
         }
 
@@ -327,6 +424,13 @@
                 throw new Error(`GitHub API error ${response.status}: ${message}`);
             }
             return body;
+        }
+
+        async function listImages() {
+            const body = await githubRequest(contentUrl(), {
+                headers: githubHeaders()
+            });
+            return Array.isArray(body) ? body.filter((item) => item.type === "file") : [];
         }
 
         async function getImage(fileName) {
@@ -349,8 +453,45 @@
                 name: body.name,
                 sha: body.sha,
                 bytes,
+                mimeType: contentTypeForName(body.name),
                 downloadUrl: body.download_url
             };
+        }
+
+        async function findImage(value) {
+            const candidates = modelCandidates(value);
+            for (const candidate of candidates) {
+                const image = await getImage(candidate);
+                if (image) {
+                    return image;
+                }
+            }
+
+            const clean = normalizeBaseName(value);
+            if (!clean || /\.[a-z0-9]+$/i.test(clean)) {
+                return null;
+            }
+
+            const files = await listImages();
+            const matched = files.find((file) => {
+                const baseName = file.name.replace(/\.[^.]+$/, "");
+                return baseName.toLowerCase() === clean.toLowerCase();
+            });
+            return matched ? getImage(matched.name) : null;
+        }
+
+        function contentTypeForName(fileName) {
+            const extension = fileName.split(".").pop().toLowerCase();
+            if (extension === "png") {
+                return "image/png";
+            }
+            if (extension === "webp") {
+                return "image/webp";
+            }
+            if (extension === "gif") {
+                return "image/gif";
+            }
+            return "image/jpeg";
         }
 
         function bytesToBase64(bytes) {
@@ -363,15 +504,14 @@
             return btoa(binary);
         }
 
-        async function uploadImage(fileName, bytes) {
-            const existing = await getImage(fileName);
+        async function putImage(fileName, bytes, sha = null, message = `Upload ${fileName}`) {
             const payload = {
-                message: `Upload ${fileName}`,
+                message,
                 branch: session.branch,
                 content: bytesToBase64(bytes)
             };
-            if (existing) {
-                payload.sha = existing.sha;
+            if (sha) {
+                payload.sha = sha;
             }
             await githubRequest(contentUrl(fileName, false), {
                 method: "PUT",
@@ -383,6 +523,26 @@
             });
         }
 
+        async function deleteImage(fileName, sha, message = `Delete ${fileName}`) {
+            await githubRequest(contentUrl(fileName, false), {
+                method: "DELETE",
+                headers: {
+                    ...githubHeaders(),
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    message,
+                    branch: session.branch,
+                    sha
+                })
+            });
+        }
+
+        async function uploadImage(fileName, bytes) {
+            const existing = await getImage(fileName);
+            await putImage(fileName, bytes, existing ? existing.sha : null, `Upload ${fileName}`);
+        }
+
         loginButton.addEventListener("click", () => {
             const account = accountInput.value.trim();
             const password = passwordInput.value;
@@ -391,17 +551,20 @@
                 return;
             }
 
-            session = buildGitHubSession();
             passwordInput.value = "";
             loginPanel.classList.add("hidden");
             adminPanel.classList.remove("hidden");
-            setStatus(session.owner && session.repo ? `ログインしました: ${session.owner}/${session.repo}` : "ログインしました。GitHub設定を入力してください。");
+            setStatus("ログインしました。");
         });
 
-        [accountInput, passwordInput].forEach((input) => {
+        [accountInput, passwordInput, modelInput].forEach((input) => {
             input.addEventListener("keydown", (event) => {
                 if (event.key === "Enter") {
-                    loginButton.click();
+                    if (input === modelInput) {
+                        searchButton.click();
+                    } else {
+                        loginButton.click();
+                    }
                 }
             });
         });
@@ -426,7 +589,103 @@
                 setStatus(`保存中: images/${fileName}`);
                 const bytes = new Uint8Array(await file.arrayBuffer());
                 await uploadImage(fileName, bytes);
+                const image = await getImage(fileName);
+                if (image) {
+                    showPreview(image);
+                }
                 setStatus(`保存しました: images/${fileName}`);
+            } catch (error) {
+                setStatus(error.message);
+            } finally {
+                setBusy(false);
+            }
+        });
+
+        searchButton.addEventListener("click", async () => {
+            const modelNo = modelInput.value.trim();
+            if (!modelNo) {
+                setStatus("型番を入力してください。");
+                return;
+            }
+
+            try {
+                ensureGitHubSession();
+                setBusy(true);
+                clearPreview();
+                setStatus(`検索中: ${modelNo}`);
+                const image = await findImage(modelNo);
+                if (!image) {
+                    setStatus("画像が見つかりませんでした。");
+                    return;
+                }
+                showPreview(image);
+                setStatus(`表示しました: images/${image.name}`);
+            } catch (error) {
+                setStatus(error.message);
+            } finally {
+                setBusy(false);
+            }
+        });
+
+        renameButton.addEventListener("click", async () => {
+            if (!currentImage) {
+                return;
+            }
+
+            const nextValue = prompt("変更後の型番を入力してください。", currentImage.name.replace(/\.[^.]+$/, ""));
+            if (nextValue === null) {
+                return;
+            }
+            const extension = currentImage.name.match(/\.[a-z0-9]+$/i)?.[0] || ".jpg";
+            const nextName = normalizeFileName(nextValue, extension);
+            if (!nextName) {
+                setStatus("変更後の型番を入力してください。");
+                return;
+            }
+            if (nextName === currentImage.name) {
+                setStatus("同じ名前です。");
+                return;
+            }
+
+            try {
+                ensureGitHubSession();
+                setBusy(true);
+                setStatus(`名前変更中: images/${currentImage.name} -> images/${nextName}`);
+                const existing = await getImage(nextName);
+                if (existing && !confirm(`images/${nextName} は既に存在します。上書きしますか？`)) {
+                    setStatus("名前変更をキャンセルしました。");
+                    return;
+                }
+                await putImage(nextName, currentImage.bytes, existing ? existing.sha : null, `Rename ${currentImage.name} to ${nextName}`);
+                await deleteImage(currentImage.name, currentImage.sha, `Remove ${currentImage.name} after rename`);
+                const renamed = await getImage(nextName);
+                if (renamed) {
+                    modelInput.value = nextName.replace(/\.[^.]+$/, "");
+                    showPreview(renamed);
+                }
+                setStatus(`名前変更しました: images/${nextName}`);
+            } catch (error) {
+                setStatus(error.message);
+            } finally {
+                setBusy(false);
+            }
+        });
+
+        deleteButton.addEventListener("click", async () => {
+            if (!currentImage) {
+                return;
+            }
+            if (!confirm(`images/${currentImage.name} を削除しますか？`)) {
+                return;
+            }
+
+            try {
+                ensureGitHubSession();
+                setBusy(true);
+                setStatus(`削除中: images/${currentImage.name}`);
+                await deleteImage(currentImage.name, currentImage.sha);
+                clearPreview();
+                setStatus("画像データを削除しました。");
             } catch (error) {
                 setStatus(error.message);
             } finally {

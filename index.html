@@ -100,8 +100,7 @@
             outline: none;
         }
 
-        button,
-        .iconButton {
+        button {
             border: 0;
             background: #2274a5;
             color: #ffffff;
@@ -109,8 +108,7 @@
             font-weight: 700;
         }
 
-        button:hover,
-        .iconButton:hover {
+        button:hover {
             background: #185a82;
         }
 
@@ -130,17 +128,6 @@
             gap: 16px;
             padding: 18px;
             border-bottom: 1px solid #dce3ea;
-        }
-
-        .iconButton {
-            display: inline-grid;
-            place-items: center;
-            flex: 0 0 40px;
-            width: 40px;
-            height: 40px;
-            border-radius: 6px;
-            text-decoration: none;
-            font-size: 1.25rem;
         }
 
         .imageFrame {
@@ -223,7 +210,6 @@
                     <p class="label">検索結果</p>
                     <h2 id="resultTitle"></h2>
                 </div>
-                <a class="iconButton" id="downloadLink" href="#" download title="ダウンロード" aria-label="ダウンロード">↓</a>
             </div>
             <div class="imageFrame">
                 <img id="resultImage" src="" alt="">
@@ -243,7 +229,6 @@
         const result = document.getElementById("result");
         const resultTitle = document.getElementById("resultTitle");
         const resultImage = document.getElementById("resultImage");
-        const downloadLink = document.getElementById("downloadLink");
         const message = document.getElementById("message");
         const messageTitle = document.getElementById("messageTitle");
         const messageText = document.getElementById("messageText");
@@ -273,8 +258,6 @@
             resultTitle.textContent = candidate.name;
             resultImage.alt = candidate.name;
             resultImage.src = candidate.url;
-            downloadLink.href = candidate.url;
-            downloadLink.download = candidate.name;
             message.classList.add("isHidden");
             result.classList.add("isVisible");
         }

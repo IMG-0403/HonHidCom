@@ -95,7 +95,6 @@ def render_page(model_no="", found=None, not_found=False):
                         <p class="label">検索結果</p>
                         <h2>{escaped_filename}</h2>
                     </div>
-                    <a class="iconButton" href="/image/{encoded_model}" download="{escaped_filename}" title="ダウンロード" aria-label="ダウンロード">↓</a>
                 </div>
                 <div class="imageFrame">
                     <img src="/image/{encoded_model}" alt="{escaped_filename}">
