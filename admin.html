@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>PicScan Admin</title>
+    <title>Demoヘルプデスクツール Admin</title>
     <style>
         :root {
             color-scheme: light;
@@ -412,40 +412,21 @@
         <header class="topBar">
             <div>
                 <p class="label">管理者画面</p>
-                <h1>PicScan Admin</h1>
+                <h1>Demoヘルプデスクツール Admin</h1>
             </div>
             <a href="index.html">検索ページへ</a>
         </header>
 
         <section class="panel" id="loginPanel">
-            <p class="label">管理者ログイン</p>
-            <div class="grid">
-                <div class="field">
-                    <label for="account">アカウント</label>
-                    <input id="account" autocomplete="username" placeholder="アカウント">
-                </div>
-                <div class="field">
-                    <label for="password">パスワード</label>
-                    <input id="password" type="password" autocomplete="current-password" placeholder="パスワード">
-                </div>
-            </div>
             <p class="label">GitHub設定</p>
             <div class="grid">
-                <div class="field">
-                    <label for="owner">Owner / Organization</label>
-                    <input id="owner" autocomplete="organization" placeholder="例: img-0403">
-                </div>
-                <div class="field">
-                    <label for="repo">Repository</label>
-                    <input id="repo" autocomplete="off" placeholder="例: PicScan">
-                </div>
-                <div class="field">
+                <div class="field full">
                     <label for="token">GitHub Token</label>
                     <input id="token" type="password" autocomplete="off" placeholder="Contents Read and write">
                 </div>
             </div>
             <div class="actions">
-                <button id="loginButton" type="button">ログイン</button>
+                <button id="loginButton" type="button">GitHub接続</button>
             </div>
         </section>
 
@@ -511,10 +492,6 @@
     </main>
 
     <script>
-        const accountInput = document.getElementById("account");
-        const passwordInput = document.getElementById("password");
-        const ownerInput = document.getElementById("owner");
-        const repoInput = document.getElementById("repo");
         const tokenInput = document.getElementById("token");
         const modelInput = document.getElementById("model");
         const numbersInput = document.getElementById("numbers");
@@ -542,16 +519,13 @@
         const lightboxComment = document.getElementById("lightboxComment");
         const lightboxClose = document.getElementById("lightboxClose");
 
-        const adminAccount = "img";
-        const adminPassword = "5381";
+        const defaultOwner = "img-0403";
+        const defaultRepo = "PicScan";
         const knownExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
         let session = null;
         let currentImage = null;
         let currentObjectUrl = "";
         let recordImageClickTimer = null;
-
-        ownerInput.value = localStorage.getItem("picscanOwner") || "img-0403";
-        repoInput.value = localStorage.getItem("picscanRepo") || "PicScan";
 
         function setStatus(message) {
             statusBox.textContent = message;
@@ -879,8 +853,8 @@
 
         function buildGitHubSession() {
             return {
-                owner: ownerInput.value.trim(),
-                repo: repoInput.value.trim(),
+                owner: defaultOwner,
+                repo: defaultRepo,
                 branch: localStorage.getItem("picscanBranch") || "main",
                 token: tokenInput.value.trim()
             };
@@ -888,11 +862,9 @@
 
         function ensureGitHubSession() {
             session = buildGitHubSession();
-            if (!session.owner || !session.repo || !session.token) {
-                throw new Error("GitHub接続情報が不足しています。");
+            if (!session.token) {
+                throw new Error("GitHub Tokenを入力してください。");
             }
-            localStorage.setItem("picscanOwner", session.owner);
-            localStorage.setItem("picscanRepo", session.repo);
         }
 
         function githubHeaders() {
@@ -912,7 +884,7 @@
             if (!response.ok) {
                 const message = body && body.message ? body.message : text;
                 if (response.status === 404) {
-                    throw new Error(`GitHubリポジトリが見つかりません: ${session.owner}/${session.repo}。Owner、Repository、Token権限を確認してください。`);
+                    throw new Error(`GitHubリポジトリが見つかりません: ${session.owner}/${session.repo}。GitHub Tokenの権限を確認してください。`);
                 }
                 throw new Error(`GitHub API error ${response.status}: ${message}`);
             }
@@ -1516,24 +1488,17 @@
         }
 
         loginButton.addEventListener("click", async () => {
-            const account = accountInput.value.trim();
-            const password = passwordInput.value;
-            if (account !== adminAccount || password !== adminPassword) {
-                setStatus("アカウントまたはパスワードが違います。");
-                return;
-            }
-
             try {
                 ensureGitHubSession();
                 setBusy(true);
-                setStatus("ログイン確認中...");
+                setStatus("GitHub接続確認中...");
                 const branch = await resolveGitHubBranch();
-                setStatus(`ログイン確認中... (${branch})`);
+                setStatus(`GitHub接続確認中... (${branch})`);
                 await refreshImageList();
-                passwordInput.value = "";
                 loginPanel.classList.add("hidden");
                 adminPanel.classList.remove("hidden");
-                setStatus(`ログインしました。使用ブランチ: ${branch}`);
+                tokenInput.value = "";
+                setStatus(`GitHub接続しました。使用ブランチ: ${branch}`);
             } catch (error) {
                 setStatus(error.message);
             } finally {
@@ -1541,7 +1506,7 @@
             }
         });
 
-        [accountInput, passwordInput, modelInput].forEach((input) => {
+        [tokenInput, modelInput].forEach((input) => {
             input.addEventListener("keydown", (event) => {
                 if (event.key === "Enter") {
                     if (input === modelInput) {
