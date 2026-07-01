@@ -572,7 +572,7 @@
             const hasImage = Boolean(currentImage);
             commentButton.disabled = !hasImage;
             renameButton.disabled = !hasImage || !currentImage.bytes;
-            deleteButton.disabled = !hasImage;
+            deleteButton.disabled = !hasImage || !currentImage.sha;
         }
 
         function clearPreview() {
@@ -597,8 +597,17 @@
             return value.split("/").map(encodeURIComponent).join("/");
         }
 
+        function normalizeImageFilePath(value) {
+            let filePath = String(value || "").trim().replaceAll("\\", "/");
+            filePath = filePath.replace(/^\/+/, "");
+            while (filePath.toLowerCase().startsWith("images/")) {
+                filePath = filePath.slice(7);
+            }
+            return filePath;
+        }
+
         function imageUrl(fileName) {
-            return `images/${encodePathSegment(fileName)}`;
+            return `images/${encodePathSegment(normalizeImageFilePath(fileName))}`;
         }
 
         function openLightbox(title, src, comment) {
@@ -810,7 +819,7 @@
         }
 
         function contentUrl(fileName = "", includeRef = true) {
-            const encodedName = encodeURIComponent(fileName).replaceAll("%2F", "/");
+            const encodedName = encodeURIComponent(normalizeImageFilePath(fileName)).replaceAll("%2F", "/");
             const path = encodedName ? `/contents/images/${encodedName}` : "/contents/images";
             const base = `https://api.github.com/repos/${session.owner}/${session.repo}${path}`;
             return includeRef ? `${base}?ref=${encodeURIComponent(session.branch)}` : base;
@@ -928,7 +937,7 @@
                     : [],
                 images: Array.isArray(record && record.images)
                     ? record.images.slice(0, 6).map((image) => ({
-                        file: String(image && (image.file || image.name) || "").trim(),
+                        file: normalizeImageFilePath(image && (image.file || image.name)),
                         comment: typeof (image && image.comment) === "string" ? image.comment : ""
                     })).filter((image) => image.file)
                     : []
@@ -977,11 +986,13 @@
         }
 
         function findRecordByImage(catalog, fileName) {
-            return catalog.records.find((record) => record.images.some((image) => image.file === fileName));
+            const normalized = normalizeImageFilePath(fileName);
+            return catalog.records.find((record) => record.images.some((image) => image.file === normalized));
         }
 
         function findRecordIndexByImage(catalog, fileName) {
-            return catalog.records.findIndex((record) => record.images.some((image) => image.file === fileName));
+            const normalized = normalizeImageFilePath(fileName);
+            return catalog.records.findIndex((record) => record.images.some((image) => image.file === normalized));
         }
 
         function findRecordByName(catalog, name) {
@@ -1023,11 +1034,12 @@
         }
 
         function commentKey(fileName) {
-            return `images/${fileName}`;
+            return `images/${normalizeImageFilePath(fileName)}`;
         }
 
         function readComment(comments, fileName) {
-            const value = comments[commentKey(fileName)] ?? comments[fileName] ?? "";
+            const normalized = normalizeImageFilePath(fileName);
+            const value = comments[commentKey(normalized)] ?? comments[normalized] ?? comments[fileName] ?? "";
             if (typeof value === "string") {
                 return value;
             }
@@ -1152,12 +1164,17 @@
                 try {
                     image = await getImage(first.file);
                 } catch (error) {
-                    throw error;
+                    image = null;
                 }
                 if (!image) {
-                    setStatus("画像が見つかりませんでした。");
-                    await refreshImageList();
-                    return;
+                    image = {
+                        name: normalizeImageFilePath(first.file),
+                        sha: "",
+                        bytes: null,
+                        mimeType: contentTypeForName(first.file),
+                        downloadUrl: imageUrl(first.file),
+                        comment: first.comment || ""
+                    };
                 }
                 image = {
                     ...image,
@@ -1214,7 +1231,8 @@
         }
 
         async function getImage(fileName) {
-            const response = await fetch(contentUrl(fileName), {
+            const normalizedFileName = normalizeImageFilePath(fileName);
+            const response = await fetch(contentUrl(normalizedFileName), {
                 headers: githubHeaders()
             });
             if (response.status === 404) {
@@ -1241,9 +1259,9 @@
                     bytes = new Uint8Array(await imageResponse.arrayBuffer());
                 }
             }
-            const comment = await getComment(fileName);
+            const comment = await getComment(normalizedFileName);
             return {
-                name: fileName,
+                name: normalizedFileName,
                 sha: body.sha,
                 bytes,
                 mimeType: contentTypeForName(fileName),
