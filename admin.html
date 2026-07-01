@@ -199,7 +199,7 @@
             box-shadow: 0 0 0 3px rgba(34, 116, 165, 0.18);
         }
 
-        .recordImageItem button {
+        .recordImageItem .imageZoomButton {
             display: block;
             width: 100%;
             min-height: 0;
@@ -233,6 +233,24 @@
             line-height: 1.45;
             white-space: pre-wrap;
             overflow-wrap: anywhere;
+        }
+
+        .recordImageActions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            padding: 0 10px 10px;
+        }
+
+        .recordImageActions button {
+            min-height: 36px;
+            padding: 0 10px;
+            background: #3f596d;
+            font-size: 0.9rem;
+        }
+
+        .recordImageActions button:disabled {
+            opacity: 0.45;
         }
 
         .resultMeta {
@@ -601,8 +619,9 @@
             const images = Array.isArray(image.recordImages) && image.recordImages.length
                 ? image.recordImages
                 : [{ file: image.name, comment: image.comment || "" }];
+            image.recordImages = images;
             recordImageGrid.textContent = "";
-            images.slice(0, 6).forEach((entry) => {
+            images.slice(0, 6).forEach((entry, index) => {
                 const item = document.createElement("article");
                 item.className = "recordImageItem";
                 if (entry.file === image.name) {
@@ -610,6 +629,7 @@
                 }
 
                 const button = document.createElement("button");
+                button.className = "imageZoomButton";
                 button.type = "button";
 
                 const frame = document.createElement("div");
@@ -629,8 +649,43 @@
                 button.addEventListener("click", () => openLightbox(img.alt, src, caption.textContent));
                 item.appendChild(button);
                 item.appendChild(caption);
+
+                const actions = document.createElement("div");
+                actions.className = "recordImageActions";
+
+                const upButton = document.createElement("button");
+                upButton.type = "button";
+                upButton.textContent = "前へ";
+                upButton.disabled = index === 0;
+                upButton.addEventListener("click", () => moveRecordImage(index, -1));
+
+                const downButton = document.createElement("button");
+                downButton.type = "button";
+                downButton.textContent = "後へ";
+                downButton.disabled = index === images.length - 1 || index >= 5;
+                downButton.addEventListener("click", () => moveRecordImage(index, 1));
+
+                actions.appendChild(upButton);
+                actions.appendChild(downButton);
+                item.appendChild(actions);
                 recordImageGrid.appendChild(item);
             });
+        }
+
+        function moveRecordImage(index, direction) {
+            if (!currentImage || !Array.isArray(currentImage.recordImages)) {
+                return;
+            }
+            const nextIndex = index + direction;
+            if (nextIndex < 0 || nextIndex >= currentImage.recordImages.length) {
+                return;
+            }
+            const images = currentImage.recordImages;
+            const moved = images[index];
+            images[index] = images[nextIndex];
+            images[nextIndex] = moved;
+            renderRecordImages(currentImage);
+            setStatus("表示順を変更しました。登録を保存すると反映されます。");
         }
 
         function showPreview(image) {
@@ -713,7 +768,7 @@
             return {
                 owner: ownerInput.value.trim(),
                 repo: repoInput.value.trim(),
-                branch: "main",
+                branch: localStorage.getItem("picscanBranch") || "main",
                 token: tokenInput.value.trim()
             };
         }
@@ -733,6 +788,25 @@
                 "Authorization": `Bearer ${session.token}`,
                 "X-GitHub-Api-Version": "2022-11-28"
             };
+        }
+
+        async function resolveGitHubBranch() {
+            const response = await fetch(`https://api.github.com/repos/${session.owner}/${session.repo}`, {
+                headers: githubHeaders()
+            });
+            const text = await response.text();
+            const body = text ? JSON.parse(text) : null;
+            if (!response.ok) {
+                const message = body && body.message ? body.message : text;
+                if (response.status === 404) {
+                    throw new Error(`GitHubリポジトリが見つかりません: ${session.owner}/${session.repo}。Owner、Repository、Token権限を確認してください。`);
+                }
+                throw new Error(`GitHub API error ${response.status}: ${message}`);
+            }
+            const defaultBranch = body && body.default_branch ? body.default_branch : session.branch;
+            session.branch = defaultBranch;
+            localStorage.setItem("picscanBranch", defaultBranch);
+            return defaultBranch;
         }
 
         function contentUrl(fileName = "", includeRef = true) {
@@ -1290,11 +1364,13 @@
                 ensureGitHubSession();
                 setBusy(true);
                 setStatus("ログイン確認中...");
+                const branch = await resolveGitHubBranch();
+                setStatus(`ログイン確認中... (${branch})`);
                 await refreshImageList();
                 passwordInput.value = "";
                 loginPanel.classList.add("hidden");
                 adminPanel.classList.remove("hidden");
-                setStatus("ログインしました。");
+                setStatus(`ログインしました。使用ブランチ: ${branch}`);
             } catch (error) {
                 setStatus(error.message);
             } finally {
@@ -1361,6 +1437,20 @@
 
                     record.name = recordName;
                     record.numbers = numbers;
+                    if (Array.isArray(currentImage.recordImages) && currentImage.recordImages.length) {
+                        const existingByFile = new Map(record.images.map((image) => [image.file, image]));
+                        record.images = currentImage.recordImages.slice(0, 6)
+                            .filter((image) => image && image.file)
+                            .map((image) => {
+                                const existing = existingByFile.get(image.file);
+                                return {
+                                    file: image.file,
+                                    comment: existing && typeof existing.comment === "string"
+                                        ? existing.comment
+                                        : (typeof image.comment === "string" ? image.comment : "")
+                                };
+                            });
+                    }
 
                     let imageEntry = record.images.find((image) => image.file === currentImage.name);
                     if (!imageEntry) {
