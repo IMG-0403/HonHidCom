@@ -147,6 +147,17 @@
             background: #ffffff;
         }
 
+        .imageItem button {
+            display: block;
+            width: 100%;
+            min-height: 0;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            color: inherit;
+        }
+
         .imageFrame {
             display: grid;
             place-items: center;
@@ -172,6 +183,10 @@
             max-width: 100%;
             max-height: 70vh;
             object-fit: contain;
+        }
+
+        .imageItem button:hover .imageFrame {
+            box-shadow: inset 0 0 0 3px rgba(34, 116, 165, 0.22);
         }
 
         .imageComment {
@@ -216,6 +231,74 @@
             padding: 2px 5px;
             border-radius: 4px;
             background: #eef2f6;
+        }
+
+        .lightbox {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            background: rgba(11, 18, 26, 0.78);
+        }
+
+        .lightbox.isHidden {
+            display: none;
+        }
+
+        .lightboxPanel {
+            width: min(100%, 1080px);
+            max-height: calc(100vh - 48px);
+            display: grid;
+            grid-template-rows: auto minmax(0, 1fr) auto;
+            overflow: hidden;
+            border-radius: 8px;
+            background: #ffffff;
+        }
+
+        .lightboxHeader {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 14px;
+            border-bottom: 1px solid #dce3ea;
+        }
+
+        .lightboxHeader p {
+            margin: 0;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .lightboxClose {
+            min-height: 36px;
+            width: 44px;
+            padding: 0;
+            font-size: 1.25rem;
+        }
+
+        .lightboxImageWrap {
+            display: grid;
+            place-items: center;
+            min-height: 0;
+            background: #101820;
+        }
+
+        .lightboxImageWrap img {
+            display: block;
+            max-width: 100%;
+            max-height: calc(100vh - 180px);
+            object-fit: contain;
+        }
+
+        .lightboxComment {
+            margin: 0;
+            padding: 12px 14px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
         }
 
         @media (max-width: 640px) {
@@ -271,6 +354,19 @@
             <h2 id="messageTitle"></h2>
             <p id="messageText"></p>
         </section>
+
+        <div class="lightbox isHidden" id="lightbox" role="dialog" aria-modal="true" aria-labelledby="lightboxTitle">
+            <div class="lightboxPanel">
+                <div class="lightboxHeader">
+                    <p id="lightboxTitle"></p>
+                    <button class="lightboxClose" id="lightboxClose" type="button" aria-label="閉じる">×</button>
+                </div>
+                <div class="lightboxImageWrap">
+                    <img id="lightboxImage" src="" alt="">
+                </div>
+                <p class="lightboxComment" id="lightboxComment"></p>
+            </div>
+        </div>
     </main>
 
     <script>
@@ -283,6 +379,11 @@
         const messageModel = document.getElementById("messageModel");
         const messageTitle = document.getElementById("messageTitle");
         const messageText = document.getElementById("messageText");
+        const lightbox = document.getElementById("lightbox");
+        const lightboxTitle = document.getElementById("lightboxTitle");
+        const lightboxImage = document.getElementById("lightboxImage");
+        const lightboxComment = document.getElementById("lightboxComment");
+        const lightboxClose = document.getElementById("lightboxClose");
         const extensions = ["", ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".svg"];
 
         function encodePathSegment(value) {
@@ -330,7 +431,8 @@
                 : Array.isArray(catalog?.records)
                     ? catalog.records
                     : [];
-            return source
+            const merged = [];
+            source
                 .map((record) => ({
                     name: String(record?.name || "").trim(),
                     numbers: Array.isArray(record?.numbers)
@@ -343,7 +445,21 @@
                         })).filter((image) => image.file)
                         : []
                 }))
-                .filter((record) => record.name && record.images.length);
+                .filter((record) => record.name && record.images.length)
+                .forEach((record) => {
+                    const existing = merged.find((item) => item.name.toLowerCase() === record.name.toLowerCase());
+                    if (!existing) {
+                        merged.push(record);
+                        return;
+                    }
+                    existing.numbers = [...new Set([...existing.numbers, ...record.numbers])];
+                    record.images.forEach((image) => {
+                        if (existing.images.length < 6 && !existing.images.some((item) => item.file === image.file)) {
+                            existing.images.push(image);
+                        }
+                    });
+                });
+            return merged;
         }
 
         function readComment(comments, fileName) {
@@ -366,6 +482,20 @@
             return `images/${encodePathSegment(fileName)}`;
         }
 
+        function openLightbox(title, src, comment) {
+            lightboxTitle.textContent = title;
+            lightboxImage.src = src;
+            lightboxImage.alt = title;
+            lightboxComment.textContent = comment || "";
+            lightbox.classList.remove("isHidden");
+        }
+
+        function closeLightbox() {
+            lightbox.classList.add("isHidden");
+            lightboxImage.removeAttribute("src");
+            lightboxImage.alt = "";
+        }
+
         function showRecord(record, comments, searchedModel = "") {
             const numberText = record.numbers.length ? ` (${record.numbers.join(", ")})` : "";
             resultTitle.textContent = `${record.name}${numberText}`;
@@ -374,19 +504,25 @@
                 const item = document.createElement("article");
                 item.className = "imageItem";
 
+                const button = document.createElement("button");
+                button.type = "button";
+
                 const frame = document.createElement("div");
                 frame.className = "imageFrame";
 
                 const img = document.createElement("img");
                 img.alt = `${record.name} ${image.file}`;
-                img.src = imageUrl(image.file);
+                const src = imageUrl(image.file);
+                img.src = src;
 
                 const comment = document.createElement("p");
                 comment.className = "imageComment";
                 comment.textContent = image.comment || readComment(comments, image.file);
 
                 frame.appendChild(img);
-                item.appendChild(frame);
+                button.appendChild(frame);
+                button.addEventListener("click", () => openLightbox(img.alt, src, comment.textContent));
+                item.appendChild(button);
                 item.appendChild(comment);
                 imageGrid.appendChild(item);
             });
@@ -450,6 +586,18 @@
         form.addEventListener("submit", (event) => {
             event.preventDefault();
             search(modelInput.value);
+        });
+
+        lightboxClose.addEventListener("click", closeLightbox);
+        lightbox.addEventListener("click", (event) => {
+            if (event.target === lightbox) {
+                closeLightbox();
+            }
+        });
+        window.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                closeLightbox();
+            }
         });
 
         const initialModel = new URLSearchParams(window.location.search).get("model");

@@ -181,6 +181,60 @@
             object-fit: contain;
         }
 
+        .recordImageGrid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+        }
+
+        .recordImageItem {
+            overflow: hidden;
+            border: 1px solid #dce3ea;
+            border-radius: 8px;
+            background: #ffffff;
+        }
+
+        .recordImageItem.isSelected {
+            border-color: #2274a5;
+            box-shadow: 0 0 0 3px rgba(34, 116, 165, 0.18);
+        }
+
+        .recordImageItem button {
+            display: block;
+            width: 100%;
+            min-height: 0;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            color: inherit;
+        }
+
+        .recordImageFrame {
+            display: grid;
+            place-items: center;
+            min-height: 180px;
+            padding: 10px;
+            background: #eef2f6;
+        }
+
+        .recordImageFrame img {
+            display: block;
+            max-width: 100%;
+            max-height: 260px;
+            object-fit: contain;
+        }
+
+        .recordImageCaption {
+            margin: 0;
+            padding: 10px 12px;
+            color: #334455;
+            font-size: 0.92rem;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
         .resultMeta {
             margin: 0;
             color: #334455;
@@ -244,6 +298,74 @@
             padding: 2px 5px;
             border-radius: 4px;
             background: #eef2f6;
+        }
+
+        .lightbox {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            background: rgba(11, 18, 26, 0.78);
+        }
+
+        .lightbox.hidden {
+            display: none;
+        }
+
+        .lightboxPanel {
+            width: min(100%, 1080px);
+            max-height: calc(100vh - 48px);
+            display: grid;
+            grid-template-rows: auto minmax(0, 1fr) auto;
+            overflow: hidden;
+            border-radius: 8px;
+            background: #ffffff;
+        }
+
+        .lightboxHeader {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 14px;
+            border-bottom: 1px solid #dce3ea;
+        }
+
+        .lightboxHeader p {
+            margin: 0;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .lightboxClose {
+            min-height: 36px;
+            width: 44px;
+            padding: 0;
+            font-size: 1.25rem;
+        }
+
+        .lightboxImageWrap {
+            display: grid;
+            place-items: center;
+            min-height: 0;
+            background: #101820;
+        }
+
+        .lightboxImageWrap img {
+            display: block;
+            max-width: 100%;
+            max-height: calc(100vh - 180px);
+            object-fit: contain;
+        }
+
+        .lightboxComment {
+            margin: 0;
+            padding: 12px 14px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
         }
 
         @media (max-width: 720px) {
@@ -339,6 +461,7 @@
             <div class="previewPanel hidden" id="previewPanel">
                 <p class="resultMeta" id="resultMeta"></p>
                 <p class="imageComment hidden" id="resultComment"></p>
+                <div class="recordImageGrid" id="recordImageGrid"></div>
                 <div class="imagePreview">
                     <img id="resultImage" alt="">
                 </div>
@@ -354,6 +477,19 @@
         </section>
 
         <section class="statusBox" id="status">ログインしてください。</section>
+
+        <div class="lightbox hidden" id="lightbox" role="dialog" aria-modal="true" aria-labelledby="lightboxTitle">
+            <div class="lightboxPanel">
+                <div class="lightboxHeader">
+                    <p id="lightboxTitle"></p>
+                    <button class="lightboxClose" id="lightboxClose" type="button" aria-label="閉じる">×</button>
+                </div>
+                <div class="lightboxImageWrap">
+                    <img id="lightboxImage" src="" alt="">
+                </div>
+                <p class="lightboxComment" id="lightboxComment"></p>
+            </div>
+        </div>
     </main>
 
     <script>
@@ -371,6 +507,7 @@
         const previewPanel = document.getElementById("previewPanel");
         const resultMeta = document.getElementById("resultMeta");
         const resultComment = document.getElementById("resultComment");
+        const recordImageGrid = document.getElementById("recordImageGrid");
         const resultImage = document.getElementById("resultImage");
         const statusBox = document.getElementById("status");
         const loginButton = document.getElementById("loginButton");
@@ -381,6 +518,11 @@
         const deleteButton = document.getElementById("deleteButton");
         const refreshListButton = document.getElementById("refreshListButton");
         const imageList = document.getElementById("imageList");
+        const lightbox = document.getElementById("lightbox");
+        const lightboxTitle = document.getElementById("lightboxTitle");
+        const lightboxImage = document.getElementById("lightboxImage");
+        const lightboxComment = document.getElementById("lightboxComment");
+        const lightboxClose = document.getElementById("lightboxClose");
 
         const adminAccount = "img";
         const adminPassword = "5381";
@@ -425,11 +567,70 @@
             resultMeta.textContent = "";
             resultComment.textContent = "";
             resultComment.classList.add("hidden");
+            recordImageGrid.textContent = "";
             numbersInput.value = "";
             commentInput.value = "";
             photoInput.value = "";
             previewPanel.classList.add("hidden");
             updateResultActions();
+        }
+
+        function encodePathSegment(value) {
+            return value.split("/").map(encodeURIComponent).join("/");
+        }
+
+        function imageUrl(fileName) {
+            return `images/${encodePathSegment(fileName)}`;
+        }
+
+        function openLightbox(title, src, comment) {
+            lightboxTitle.textContent = title;
+            lightboxImage.src = src;
+            lightboxImage.alt = title;
+            lightboxComment.textContent = comment || "";
+            lightbox.classList.remove("hidden");
+        }
+
+        function closeLightbox() {
+            lightbox.classList.add("hidden");
+            lightboxImage.removeAttribute("src");
+            lightboxImage.alt = "";
+        }
+
+        function renderRecordImages(image) {
+            const images = Array.isArray(image.recordImages) && image.recordImages.length
+                ? image.recordImages
+                : [{ file: image.name, comment: image.comment || "" }];
+            recordImageGrid.textContent = "";
+            images.slice(0, 6).forEach((entry) => {
+                const item = document.createElement("article");
+                item.className = "recordImageItem";
+                if (entry.file === image.name) {
+                    item.classList.add("isSelected");
+                }
+
+                const button = document.createElement("button");
+                button.type = "button";
+
+                const frame = document.createElement("div");
+                frame.className = "recordImageFrame";
+
+                const img = document.createElement("img");
+                const src = entry.file === image.name && currentObjectUrl ? currentObjectUrl : imageUrl(entry.file);
+                img.src = src;
+                img.alt = `${image.recordName || image.name} ${entry.file}`;
+
+                const caption = document.createElement("p");
+                caption.className = "recordImageCaption";
+                caption.textContent = entry.comment || "";
+
+                frame.appendChild(img);
+                button.appendChild(frame);
+                button.addEventListener("click", () => openLightbox(img.alt, src, caption.textContent));
+                item.appendChild(button);
+                item.appendChild(caption);
+                recordImageGrid.appendChild(item);
+            });
         }
 
         function showPreview(image) {
@@ -459,6 +660,7 @@
             if (image.numbers) {
                 numbersInput.value = image.numbers.join(", ");
             }
+            renderRecordImages(image);
             previewPanel.classList.remove("hidden");
             updateResultActions();
         }
@@ -644,19 +846,33 @@
                 : Array.isArray(catalog && catalog.records)
                     ? catalog.records
                     : [];
+            const merged = [];
+            records.map((record) => ({
+                name: String(record && record.name || "").trim(),
+                numbers: Array.isArray(record && record.numbers)
+                    ? record.numbers.map((number) => String(number).trim()).filter((number) => /^\d{4}$/.test(number))
+                    : [],
+                images: Array.isArray(record && record.images)
+                    ? record.images.slice(0, 6).map((image) => ({
+                        file: String(image && (image.file || image.name) || "").trim(),
+                        comment: typeof (image && image.comment) === "string" ? image.comment : ""
+                    })).filter((image) => image.file)
+                    : []
+            })).filter((record) => record.name).forEach((record) => {
+                const existing = merged.find((item) => item.name.toLowerCase() === record.name.toLowerCase());
+                if (!existing) {
+                    merged.push(record);
+                    return;
+                }
+                existing.numbers = [...new Set([...existing.numbers, ...record.numbers])];
+                record.images.forEach((image) => {
+                    if (existing.images.length < 6 && !existing.images.some((item) => item.file === image.file)) {
+                        existing.images.push(image);
+                    }
+                });
+            });
             return {
-                records: records.map((record) => ({
-                    name: String(record && record.name || "").trim(),
-                    numbers: Array.isArray(record && record.numbers)
-                        ? record.numbers.map((number) => String(number).trim()).filter((number) => /^\d{4}$/.test(number))
-                        : [],
-                    images: Array.isArray(record && record.images)
-                        ? record.images.slice(0, 6).map((image) => ({
-                            file: String(image && (image.file || image.name) || "").trim(),
-                            comment: typeof (image && image.comment) === "string" ? image.comment : ""
-                        })).filter((image) => image.file)
-                        : []
-                })).filter((record) => record.name)
+                records: merged
             };
         }
 
@@ -727,6 +943,7 @@
                 ...image,
                 recordName: record.name,
                 numbers: record.numbers,
+                recordImages: record.images,
                 comment: item && item.comment ? item.comment : image.comment
             };
         }
@@ -963,6 +1180,7 @@
                         ...image,
                         recordName: record.name,
                         numbers: record.numbers,
+                        recordImages: record.images,
                         comment: first.comment || image.comment
                     };
                 }
@@ -1366,6 +1584,18 @@
                 setStatus(error.message);
             } finally {
                 setBusy(false);
+            }
+        });
+
+        lightboxClose.addEventListener("click", closeLightbox);
+        lightbox.addEventListener("click", (event) => {
+            if (event.target === lightbox) {
+                closeLightbox();
+            }
+        });
+        window.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                closeLightbox();
             }
         });
     </script>
