@@ -6,30 +6,13 @@
         "3685",
         "3694"
       ],
+      "comment": "",
       "images": [
         {
-          "file": "CT37-X0N-57S10DG/CT37-X0N-57S10DG_1.jpg",
-          "comment": ""
+          "file": "CT37-X0N-57S10DG/CT37-X0N-57S10DG_1.jpg"
         },
         {
-          "file": "CT37-X0N-57S10DG/CT37-X0N-57S10DG_3.jpg",
-          "comment": ""
-        }
-      ]
-    },
-    {
-      "name": "1960GHDV-2USB-A",
-      "numbers": [
-        "1234"
-      ],
-      "images": [
-        {
-          "file": "1960GHDV-2USB-A/1960GHDV-2USB-A_2.jpg",
-          "comment": ""
-        },
-        {
-          "file": "1960GHDV-2USB-A/1960GHDV-2USB-A_1.jpg",
-          "comment": "SOCR付き、USBケーブル同梱\nテスト"
+          "file": "CT37-X0N-57S10DG/CT37-X0N-57S10DG_3.jpg"
         }
       ]
     }
