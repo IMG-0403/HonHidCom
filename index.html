@@ -465,6 +465,7 @@
                     numbers: Array.isArray(record?.numbers)
                         ? record.numbers.map((number) => String(number).trim()).filter(Boolean)
                         : [],
+                    comment: typeof record?.comment === "string" ? record.comment : "",
                     images: Array.isArray(record?.images)
                         ? record.images.slice(0, 6).map((image) => ({
                             file: String(image?.file || image?.name || "").trim(),
@@ -474,10 +475,17 @@
                 }))
                 .filter((record) => record.name && record.images.length)
                 .forEach((record) => {
+                    if (!record.comment) {
+                        record.comment = record.images.find((image) => image.comment)?.comment || "";
+                    }
+                    record.images = record.images.map((image) => ({ file: image.file }));
                     const existing = merged.find((item) => item.name.toLowerCase() === record.name.toLowerCase());
                     if (!existing) {
                         merged.push(record);
                         return;
+                    }
+                    if (!existing.comment && record.comment) {
+                        existing.comment = record.comment;
                     }
                     existing.numbers = [...new Set([...existing.numbers, ...record.numbers])];
                     record.images.forEach((image) => {
@@ -525,9 +533,11 @@
 
         function showRecord(record, comments, searchedModel = "") {
             resultTitle.textContent = record.name;
-            const recordComments = [...new Set(record.images
-                .map((image) => image.comment || readComment(comments, image.file))
-                .map((comment) => comment.trim())
+            const recordComments = [...new Set([
+                record.comment,
+                ...record.images.map((image) => image.comment || readComment(comments, image.file))
+            ]
+                .map((comment) => String(comment || "").trim())
                 .filter(Boolean))];
             resultComment.textContent = recordComments.join("\n");
             resultCommentBlock.classList.toggle("isHidden", !recordComments.length);
@@ -547,13 +557,11 @@
                 const src = imageUrl(image.file);
                 img.src = src;
 
-                const comment = document.createElement("p");
-                comment.className = "imageComment";
-                comment.textContent = image.comment || readComment(comments, image.file);
+                const commentText = record.comment || image.comment || readComment(comments, image.file);
 
                 frame.appendChild(img);
                 button.appendChild(frame);
-                button.addEventListener("click", () => openLightbox(img.alt, src, comment.textContent));
+                button.addEventListener("click", () => openLightbox(img.alt, src, commentText));
                 item.appendChild(button);
                 imageGrid.appendChild(item);
             });

@@ -447,7 +447,7 @@
                 </div>
                 <div class="field full">
                     <label for="comment">コメント</label>
-                    <textarea id="comment" maxlength="1000" placeholder="画像と一緒に表示するコメント"></textarea>
+                    <textarea id="comment" maxlength="1000" placeholder="型番に紐づけるコメント"></textarea>
                 </div>
             </div>
             <div class="actions">
@@ -671,9 +671,8 @@
                 setImageWithFallback(img, urls);
                 img.alt = `${recordName || image.name} ${entryFile}`;
 
-                const caption = document.createElement("p");
-                caption.className = "recordImageCaption";
-                caption.textContent = entry.comment || "";
+                const recordCommentText = image.comment || "";
+                caption.textContent = "";
 
                 frame.appendChild(img);
                 button.appendChild(frame);
@@ -683,10 +682,9 @@
                 });
                 button.addEventListener("dblclick", () => {
                     clearTimeout(recordImageClickTimer);
-                    openLightbox(img.alt, img.currentSrc || img.src, caption.textContent);
+                    openLightbox(img.alt, img.currentSrc || img.src, recordCommentText);
                 });
                 item.appendChild(button);
-                item.appendChild(caption);
 
                 const actions = document.createElement("div");
                 actions.className = "recordImageActions";
@@ -714,6 +712,7 @@
             const record = {
                 name: recordImage.recordName || modelInput.value.trim() || recordImage.name,
                 numbers: Array.isArray(recordImage.numbers) ? recordImage.numbers : [],
+                comment: typeof recordImage.comment === "string" ? recordImage.comment : "",
                 images: Array.isArray(recordImage.recordImages) ? recordImage.recordImages : []
             };
             let selected = null;
@@ -730,7 +729,7 @@
                     bytes: null,
                     mimeType: contentTypeForName(fallbackFile),
                     downloadUrl: imageUrl(fallbackFile),
-                    comment: entry.comment || ""
+                    comment: record.comment || ""
                 };
             }
             selectCurrentImage({
@@ -738,7 +737,7 @@
                 recordName: record.name,
                 numbers: record.numbers,
                 recordImages: record.images,
-                comment: typeof entry.comment === "string" ? entry.comment : selected.comment
+                comment: record.comment || selected.comment || ""
             });
             setStatus(`選択しました: images/${selected.name}`);
         }
@@ -1027,6 +1026,9 @@
                 numbers: Array.isArray(record && record.numbers)
                     ? record.numbers.map((number) => String(number).trim()).filter((number) => /^\d{4}$/.test(number))
                     : [],
+                comment: typeof (record && record.comment) === "string"
+                    ? record.comment
+                    : "",
                 images: Array.isArray(record && record.images)
                     ? record.images.slice(0, 6).map((image) => ({
                         file: normalizeImageFilePath(image && (image.file || image.name)),
@@ -1034,10 +1036,18 @@
                     })).filter((image) => image.file)
                     : []
             })).filter((record) => record.name).forEach((record) => {
+                if (!record.comment) {
+                    const legacyComment = record.images.find((image) => image.comment)?.comment || "";
+                    record.comment = legacyComment;
+                }
+                record.images = record.images.map((image) => ({ file: image.file }));
                 const existing = merged.find((item) => item.name.toLowerCase() === record.name.toLowerCase());
                 if (!existing) {
                     merged.push(record);
                     return;
+                }
+                if (!existing.comment && record.comment) {
+                    existing.comment = record.comment;
                 }
                 existing.numbers = [...new Set([...existing.numbers, ...record.numbers])];
                 record.images.forEach((image) => {
@@ -1049,6 +1059,18 @@
             return {
                 records: merged
             };
+        }
+
+        function recordComment(record) {
+            if (!record) {
+                return "";
+            }
+            if (typeof record.comment === "string" && record.comment) {
+                return record.comment;
+            }
+            return Array.isArray(record.images)
+                ? (record.images.find((image) => image && image.comment)?.comment || "")
+                : "";
         }
 
         async function saveCatalogFile(catalog, sha) {
@@ -1121,7 +1143,7 @@
                 recordName: record.name,
                 numbers: record.numbers,
                 recordImages: record.images,
-                comment: item && item.comment ? item.comment : image.comment
+                comment: recordComment(record) || (item && item.comment ? item.comment : image.comment)
             };
         }
 
@@ -1276,7 +1298,7 @@
                         bytes: null,
                         mimeType: contentTypeForName(first.file),
                         downloadUrl: imageUrl(fallbackFile),
-                        comment: first.comment || ""
+                        comment: recordComment(record)
                     };
                 }
                 image = {
@@ -1284,7 +1306,7 @@
                     recordName: record.name,
                     numbers: record.numbers,
                     recordImages: record.images,
-                    comment: first.comment || image.comment
+                    comment: recordComment(record) || image.comment
                 };
                 modelInput.value = record.name;
                 showPreview(image);
@@ -1414,7 +1436,7 @@
                         recordName: record.name,
                         numbers: record.numbers,
                         recordImages: record.images,
-                        comment: first.comment || image.comment
+                        comment: recordComment(record) || image.comment
                     };
                 }
             }
@@ -1568,7 +1590,8 @@
                         record = {
                             name: currentImage.recordName || recordName,
                             numbers: Array.isArray(currentImage.numbers) ? currentImage.numbers : [],
-                            images: [{ file: currentImage.name, comment: currentImage.comment || "" }]
+                            comment: currentImage.comment || "",
+                            images: [{ file: currentImage.name }]
                         };
                         catalog.records.push(record);
                     }
@@ -1581,28 +1604,18 @@
 
                     record.name = recordName;
                     record.numbers = numbers;
+                    record.comment = comment;
                     if (Array.isArray(currentImage.recordImages) && currentImage.recordImages.length) {
-                        const existingByFile = new Map(record.images.map((image) => [image.file, image]));
                         record.images = currentImage.recordImages.slice(0, 6)
                             .filter((image) => image && image.file)
-                            .map((image) => {
-                                const existing = existingByFile.get(image.file);
-                                return {
-                                    file: image.file,
-                                    comment: existing && typeof existing.comment === "string"
-                                        ? existing.comment
-                                        : (typeof image.comment === "string" ? image.comment : "")
-                                };
-                            });
+                            .map((image) => ({ file: normalizeImageFilePath(image.file) }));
                     }
 
                     let imageEntry = record.images.find((image) => image.file === currentImage.name);
                     if (!imageEntry) {
-                        imageEntry = { file: currentImage.name, comment: "" };
+                        imageEntry = { file: currentImage.name };
                         record.images.unshift(imageEntry);
                     }
-                    imageEntry.comment = comment;
-                    await setComment(imageEntry.file, comment);
                     previewFileName = imageEntry.file;
 
                     if (files.length) {
@@ -1623,16 +1636,16 @@
                         }
                         const bytes = new Uint8Array(await file.arrayBuffer());
                         await uploadImage(fileName, bytes);
-                        await setComment(fileName, comment);
-                        record.images.push({ file: fileName, comment });
+                        record.images.push({ file: fileName });
                     }
                 } else {
                     record = findRecordByName(catalog, recordName);
                     if (!record) {
-                        record = { name: recordName, numbers: [], images: [] };
+                        record = { name: recordName, numbers: [], comment: "", images: [] };
                         catalog.records.push(record);
                     }
                     record.numbers = numbers.length ? numbers : record.numbers;
+                    record.comment = comment;
 
                     const remaining = 6 - record.images.length;
                     if (remaining <= 0) {
@@ -1651,8 +1664,7 @@
                         }
                         const bytes = new Uint8Array(await file.arrayBuffer());
                         await uploadImage(fileName, bytes);
-                        await setComment(fileName, comment);
-                        record.images.push({ file: fileName, comment });
+                        record.images.push({ file: fileName });
                         if (!previewFileName) {
                             previewFileName = fileName;
                         }
@@ -1682,22 +1694,19 @@
             try {
                 ensureGitHubSession();
                 setBusy(true);
-                setStatus(`コメント保存中: images/${currentImage.name}`);
-                await setComment(currentImage.name, commentInput.value);
+                const recordName = currentImage.recordName || modelInput.value.trim() || currentImage.name;
+                setStatus(`コメント保存中: ${recordName}`);
                 const { sha, catalog } = await loadCatalogFile();
-                const record = findRecordByImage(catalog, currentImage.name);
+                const record = findRecordByImage(catalog, currentImage.name) || findRecordByName(catalog, recordName);
                 if (record) {
-                    const imageEntry = record.images.find((image) => image.file === currentImage.name);
-                    if (imageEntry) {
-                        imageEntry.comment = commentInput.value.trim();
-                        await saveCatalogFile(catalog, sha);
-                    }
+                    record.comment = commentInput.value.trim();
+                    await saveCatalogFile(catalog, sha);
                 }
                 const image = await getImage(currentImage.name);
                 if (image) {
                     showPreview(await attachCatalogToImage(image));
                 }
-                setStatus(`コメントを保存しました: images/${currentImage.name}`);
+                setStatus(`コメントを保存しました: ${recordName}`);
             } catch (error) {
                 setStatus(error.message);
             } finally {
@@ -1828,7 +1837,7 @@
                         recordName: nextRecord.name,
                         numbers: nextRecord.numbers,
                         recordImages: nextRecord.images,
-                        comment: nextEntry.comment || ""
+                        comment: recordComment(nextRecord)
                     }, nextEntry);
                 } else {
                     clearPreview();
