@@ -1,20 +1,3 @@
 {
-  "records": [
-    {
-      "name": "CT37-X0N-57S10DG",
-      "numbers": [
-        "3685",
-        "3694"
-      ],
-      "comment": "",
-      "images": [
-        {
-          "file": "CT37-X0N-57S10DG/CT37-X0N-57S10DG_1.jpg"
-        },
-        {
-          "file": "CT37-X0N-57S10DG/CT37-X0N-57S10DG_3.jpg"
-        }
-      ]
-    }
-  ]
+  "records": []
 }
