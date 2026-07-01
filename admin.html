@@ -756,7 +756,7 @@
                     comment: entry.comment || ""
                 };
             }
-            showPreview({
+            selectCurrentImage({
                 ...selected,
                 recordName: record.name,
                 numbers: record.numbers,
@@ -764,6 +764,22 @@
                 comment: typeof entry.comment === "string" ? entry.comment : selected.comment
             });
             setStatus(`選択しました: images/${selected.name}`);
+        }
+
+        function selectCurrentImage(image) {
+            currentImage = image;
+            resultMeta.textContent = `images/${image.name}`;
+            resultComment.textContent = image.comment || "";
+            resultComment.classList.toggle("hidden", !image.comment);
+            commentInput.value = image.comment || "";
+            if (image.recordName) {
+                modelInput.value = image.recordName;
+            }
+            if (image.numbers) {
+                numbersInput.value = image.numbers.join(", ");
+            }
+            renderRecordImages(image);
+            updateResultActions();
         }
 
         function moveRecordImage(index, direction) {

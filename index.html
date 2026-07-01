@@ -497,8 +497,7 @@
         }
 
         function showRecord(record, comments, searchedModel = "") {
-            const numberText = record.numbers.length ? ` (${record.numbers.join(", ")})` : "";
-            resultTitle.textContent = `${record.name}${numberText}`;
+            resultTitle.textContent = record.name;
             imageGrid.textContent = "";
             record.images.slice(0, 6).forEach((image) => {
                 const item = document.createElement("article");
