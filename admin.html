@@ -164,23 +164,6 @@
             margin-top: 16px;
         }
 
-        .imagePreview {
-            display: grid;
-            place-items: center;
-            min-height: 280px;
-            border: 1px solid #dce3ea;
-            border-radius: 8px;
-            background: #eef2f6;
-            overflow: hidden;
-        }
-
-        .imagePreview img {
-            display: block;
-            width: 100%;
-            max-height: 460px;
-            object-fit: contain;
-        }
-
         .recordImageGrid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -461,9 +444,6 @@
                 <p class="resultMeta" id="resultMeta"></p>
                 <p class="imageComment hidden" id="resultComment"></p>
                 <div class="recordImageGrid" id="recordImageGrid"></div>
-                <div class="imagePreview">
-                    <img id="resultImage" alt="">
-                </div>
             </div>
 
             <div class="listPanel">
@@ -503,7 +483,6 @@
         const resultMeta = document.getElementById("resultMeta");
         const resultComment = document.getElementById("resultComment");
         const recordImageGrid = document.getElementById("recordImageGrid");
-        const resultImage = document.getElementById("resultImage");
         const statusBox = document.getElementById("status");
         const loginButton = document.getElementById("loginButton");
         const uploadButton = document.getElementById("uploadButton");
@@ -524,7 +503,6 @@
         const knownExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
         let session = null;
         let currentImage = null;
-        let currentObjectUrl = "";
         let recordImageClickTimer = null;
 
         function setStatus(message) {
@@ -552,11 +530,6 @@
 
         function clearPreview() {
             currentImage = null;
-            if (currentObjectUrl) {
-                URL.revokeObjectURL(currentObjectUrl);
-                currentObjectUrl = "";
-            }
-            resultImage.removeAttribute("src");
             resultMeta.textContent = "";
             resultComment.textContent = "";
             resultComment.classList.add("hidden");
@@ -662,12 +635,7 @@
                 frame.className = "recordImageFrame";
 
                 const img = document.createElement("img");
-                const canUseCurrentObjectUrl = entryFile === currentName
-                    && currentObjectUrl
-                    && normalizeImageFilePath(resultImage.alt) === entryFile;
-                const urls = canUseCurrentObjectUrl
-                    ? [currentObjectUrl, ...recordImageUrls(recordName, entryFile)]
-                    : recordImageUrls(recordName, entryFile);
+                const urls = recordImageUrls(recordName, entryFile);
                 setImageWithFallback(img, urls);
                 img.alt = `${recordName || image.name} ${entryFile}`;
 
@@ -775,19 +743,6 @@
 
         function showPreview(image) {
             currentImage = image;
-            if (currentObjectUrl) {
-                URL.revokeObjectURL(currentObjectUrl);
-                currentObjectUrl = "";
-            }
-            if (image.bytes && image.bytes.length) {
-                currentObjectUrl = URL.createObjectURL(new Blob([image.bytes], { type: image.mimeType }));
-                resultImage.src = currentObjectUrl;
-            } else if (image.downloadUrl) {
-                resultImage.src = `${image.downloadUrl}${image.downloadUrl.includes("?") ? "&" : "?"}v=${Date.now()}`;
-            } else {
-                resultImage.removeAttribute("src");
-            }
-            resultImage.alt = image.name;
             const recordText = image.recordName ? ` / 登録名: ${image.recordName}` : "";
             const numberText = image.numbers && image.numbers.length ? ` / 登録番号: ${image.numbers.join(", ")}` : "";
             resultMeta.textContent = `images/${image.name}${recordText}${numberText}`;
