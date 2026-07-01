@@ -999,9 +999,17 @@
         }
 
         async function listImages() {
-            const body = await githubRequest(contentUrl(), {
+            const response = await fetch(contentUrl(), {
                 headers: githubHeaders()
             });
+            const text = await response.text();
+            const body = text ? JSON.parse(text) : null;
+            if (response.status === 404) {
+                return [];
+            }
+            if (!response.ok) {
+                throw new Error(`GitHub API error ${response.status}: ${body && body.message ? body.message : text}`);
+            }
             return Array.isArray(body)
                 ? body.filter((item) => item.type === "file").sort((a, b) => a.name.localeCompare(b.name, "ja"))
                 : [];
